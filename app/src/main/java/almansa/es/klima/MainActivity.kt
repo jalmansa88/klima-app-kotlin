@@ -4,8 +4,15 @@ import almansa.es.klima.data.Request
 import almansa.es.klima.data.Response
 import almansa.es.klima.db.AppDatabase
 import almansa.es.klima.db.entities.Location
+import android.Manifest
+import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.arch.persistence.room.Room
+import android.content.pm.PackageManager
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Bundle
+import android.support.v4.app.ActivityCompat
+import android.support.v4.content.ContextCompat
 import android.support.v7.app.AppCompatActivity
 import android.text.TextUtils
 import android.view.View
@@ -31,6 +38,43 @@ class MainActivity : AppCompatActivity() {
         btKlima.setOnClickListener({ thisView -> obtainWeatherByCityAndCountryCode(thisView) })
         btLastKlima.setOnClickListener({ thisView -> obtainWeatherFromLastCall(thisView) })
         btClear.setOnClickListener({thisView -> clearUiData(thisView) })
+        btGps.setOnClickListener({thisView -> getGPSPositionWeather(thisView) })
+
+    }
+
+    private fun getGPSPositionWeather(thisView: View?) {
+        var locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
+
+        val locationListener : LocationListener = object : LocationListener{
+
+            override fun onLocationChanged(location: android.location.Location?) {
+                perfomAsyncGPSApiCall(location!!.latitude, location.longitude)
+            }
+
+            override fun onProviderDisabled(provider: String?) { }
+
+            override fun onProviderEnabled(provider: String?) { }
+
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) { }
+
+        }
+
+        if (ContextCompat.checkSelfPermission(this,
+                        Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                            Manifest.permission.ACCESS_FINE_LOCATION)) {
+
+            } else {
+
+                ActivityCompat.requestPermissions(this,
+                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1)
+
+            }
+        }
+
+        locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0F, locationListener)
 
     }
 
@@ -54,6 +98,28 @@ class MainActivity : AppCompatActivity() {
         doAsync {
             val request = Request(cityName, countryCode)
             processResponse(request)
+        }
+    }
+
+    private fun perfomAsyncGPSApiCall(lat: Double, long: Double) {
+        doAsync {
+            val request = Request()
+
+            lateinit var response : Response
+
+            try {
+                response = request.makeGpsApiCall(lat, long)
+
+            } catch (e: Exception) {
+                uiThread {
+                    longToast("City not found")
+                }
+                return@doAsync
+            }
+
+            uiThread {
+                fillUIInformation(response)
+            }
         }
     }
 
